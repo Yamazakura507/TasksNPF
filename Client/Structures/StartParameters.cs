@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Net;
 
-namespace Server.Structures
+namespace Client.Structures
 {
     public struct StartParameters
     {

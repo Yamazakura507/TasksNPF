@@ -1,7 +1,9 @@
-﻿using Server.Structures;
+﻿using Server.Classes;
+using Server.Structures;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.Serialization.Formatters.Binary;
@@ -12,13 +14,15 @@ namespace Server
 {
     internal class Program
     {
-        async static Task Main(string[] args)
+        private const int SizeBlock = 1024;
+
+        public static void Main(string[] args)
         {
             StartParameters startParameters = new StartParameters() 
             { 
-                IPAddress = IPAddress.Parse(args[0]),
-                Port = Int16.Parse(args[1]),
-                FolderPath = args[2]
+                IPAddress = IPAddress.Parse("127.0.0.1"),//args[0]),
+                Port = Int16.Parse("5555"),//args[1]),
+                FolderPath = @"D:\Downloads\TaskNPFRateks\TaskOne\Server\bin\Debug\test"//args[2]
             };
 
             TcpListener server = new TcpListener(startParameters.IPAddress, startParameters.Port);
@@ -31,10 +35,11 @@ namespace Server
                     Console.WriteLine("Ожидание подключений...");
 
                     TcpClient tcpClient = server.AcceptTcpClient();
+                    NetworkStream stream = tcpClient.GetStream();
 
                     Console.WriteLine("Подключен клиент.");
 
-                    string[] valuesSend = (await ReadTcp(tcpClient)).Split(':');
+                    string[] valuesSend = ReadTcp(stream, tcpClient).Split(':');
 
                     string newFileName = valuesSend[0];
                     short udpPort = Int16.Parse(valuesSend[1]);
@@ -49,15 +54,16 @@ namespace Server
 
                         while (answerClient != "Передача завершена")
                         {
-                            blocks.Add(ReadUdp(udpClient, tcpClient, endPoint));
-                            answerClient = await ReadTcp(tcpClient);
+                            blocks.Add(ReadUdp(udpClient, stream, endPoint));
+                            answerClient = ReadTcp(stream, tcpClient);
                         }
 
-                        byte[] bytes = null;
+                        byte[] bytes = new byte[SizeBlock * blocks.Count];
 
-                        foreach (Block block in blocks)
+                        for (int i = 0; i < bytes.Length/SizeBlock; i++)
                         {
-                            Array.Copy(block.Data, bytes, bytes.Length + block.Data.Length);
+                            byte[] block = blocks.ElementAt(i).Data;
+                            Array.Copy(block, 0, bytes, i * SizeBlock, block.Length);
                         }
                         
                         using (FileStream fileStream = new FileStream(startParameters.FolderPath + '\\' + newFileName, FileMode.OpenOrCreate))
@@ -67,13 +73,14 @@ namespace Server
                     }
                     catch (SocketException ex)
                     {
-                        Console.WriteLine(ex);
+                        Console.WriteLine(ex.Message);
                     }
                     finally
                     {
                         udpClient.Close();
                     }
 
+                    stream.Close();
                     tcpClient.Close();
                 }
             }
@@ -86,41 +93,32 @@ namespace Server
                 if (server != null)
                     server.Stop();
             }
-
-            Console.ReadKey();
         }
 
-        async static private Task<string> ReadTcp(TcpClient client)
+        private static string ReadTcp(NetworkStream stream, TcpClient tcpClient)
         {
-            NetworkStream stream = client.GetStream();
+            stream = tcpClient.GetStream();
             StringBuilder builder = new StringBuilder();
             byte[] buffer = new byte[1024];
 
             do
             {
-                int countBuffer = await stream.ReadAsync(buffer, 0, buffer.Length);
-
+                int countBuffer = stream.Read(buffer, 0, buffer.Length);
                 builder.AppendFormat("{0}", Encoding.UTF8.GetString(buffer, 0, countBuffer));
-            }
-            while (stream.DataAvailable);
-
-            stream.Close();
+            } while (stream.DataAvailable);
 
             return builder.ToString();
         }
 
-        async static private void SendTcp(TcpClient client, string messege)
+        private static void SendTcp(NetworkStream stream, string messege)
         {
-            NetworkStream stream = client.GetStream();
             StringBuilder builder = new StringBuilder();
             
             byte[] buffer = Encoding.UTF8.GetBytes(messege);
-            await stream.WriteAsync(buffer, 0, buffer.Length);
-
-            stream.Close();
+            stream.Write(buffer, 0, buffer.Length);
         }
 
-        private static Block ReadUdp(UdpClient udpClient, TcpClient tcpClient, IPEndPoint endPoint)
+         private static Block ReadUdp(UdpClient udpClient, NetworkStream stream, IPEndPoint endPoint)
         {
             Block block = new Block();
             byte[] bytes = null;
@@ -129,10 +127,13 @@ namespace Server
             {
                 while (bytes is null)
                 {
+                    udpClient.Connect(endPoint);
                     bytes = udpClient.Receive(ref endPoint);
+                    udpClient.Close();
                 }
 
                 BinaryFormatter bf = new BinaryFormatter();
+                bf.Binder = new CustomBinder();
 
                 using (MemoryStream ms = new MemoryStream(bytes))
                 {
@@ -141,12 +142,12 @@ namespace Server
 
                 Console.WriteLine($"Получен блок id = {block.Id}");
 
-                SendTcp(tcpClient, $"{block.Id}:принят");
+                SendTcp(stream, $"{block.Id}:принят");
             }
             catch (Exception)
             {
                 Console.WriteLine($"Блок id = {block.Id} не загружен");
-                SendTcp(tcpClient, $"{block.Id}:отклонён");
+                SendTcp(stream, $"{block.Id}:отклонён");
             }
 
             return block;

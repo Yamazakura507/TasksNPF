@@ -1,5 +1,8 @@
-﻿namespace Server.Structures
+﻿using System;
+
+namespace Server.Structures
 {
+    [Serializable]
     public struct Block
     {
         public int Id { get; set; }

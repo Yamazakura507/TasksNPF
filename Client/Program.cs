@@ -24,11 +24,11 @@ namespace Client
             {
                StartParameters startParameters = new StartParameters()
                 {
-                    IPAddress = IPAddress.Parse("127.0.0.1"),//args[0]),
-                    PortConect = Int16.Parse("5555"),//args[1]),
-                    PortSendUdp = Int16.Parse("6000"),//args[2]),
-                   FilePath = @"D:\Downloads\TaskNPFRateks\TaskOne\Client\bin\Debug\test.txt",//new Uri(args[3], UriKind.RelativeOrAbsolute).LocalPath,
-                    TimeoutConfirm = TimeSpan.FromMilliseconds(Int32.Parse("500"))//args[4]))
+                    IPAddress = IPAddress.Parse(args[0]),
+                    PortConect = Int16.Parse(args[1]),
+                    PortSendUdp = Int16.Parse(args[2]),
+                   FilePath = new Uri(args[3], UriKind.RelativeOrAbsolute).LocalPath,
+                    TimeoutConfirm = TimeSpan.FromMilliseconds(Int32.Parse(args[4]))
                 };
 
                 Console.WriteLine("Ожидание подключения...");

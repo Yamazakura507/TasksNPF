@@ -20,9 +20,9 @@ namespace Server
         {
             StartParameters startParameters = new StartParameters() 
             { 
-                IPAddress = IPAddress.Parse("127.0.0.1"),//args[0]),
-                Port = Int16.Parse("5555"),//args[1]),
-                FolderPath = @"D:\Downloads\TaskNPFRateks\TaskOne\Server\bin\Debug\test"//args[2]
+                IPAddress = IPAddress.Parse(args[0]),
+                Port = Int16.Parse("args[1]"),
+                FolderPath = new Uri(args[2], UriKind.RelativeOrAbsolute).LocalPath,
             };
 
             TcpListener server = new TcpListener(startParameters.IPAddress, startParameters.Port);
